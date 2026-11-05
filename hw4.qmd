@@ -6,3 +6,75 @@ editor: visual
 ---
 
 This is the link to the repo: https://github.com/YifengHuang-Bob/Homework4
+
+
+## Problem 1 - Tidyverse: New Zealand
+
+### (a) Total Votes by Election Year and Voting Type
+
+```{r}
+library(tidyverse)
+
+nzge <- readRDS("data/nzge.rds")
+```
+
+```{r}
+vote_counts <- nzge %>%
+  group_by(election_year, voting_type) %>%
+  summarise(total_votes = sum(votes), .groups = "drop") %>%
+  arrange(desc(total_votes))
+
+print(vote_counts, n = Inf)
+
+```
+
+\
+
+### (b) Candidate Vote Proportions by Party in 2014
+
+```{r}
+candidate_votes_2014 <- nzge %>%
+  filter(election_year == 2014, voting_type == "Candidate") %>%
+  group_by(party) %>%
+  summarise(total_votes = sum(votes), .groups = "drop") %>%
+  mutate(percent_vote = 100 * total_votes / sum(total_votes)) %>%
+  arrange(desc(percent_vote)) %>%
+  mutate(percent_vote = round(percent_vote, 2))
+
+print(candidate_votes_2014, n = Inf)
+
+```
+
+\
+
+### (c) Winning Parties by Election Year and Voting Type
+
+```{r}
+winning_parties <- nzge %>%
+  group_by(election_year, voting_type, party) %>%
+  summarise(total_votes = sum(votes), .groups = "drop") %>%
+  group_by(election_year, voting_type) %>%
+  slice_max(order_by = total_votes, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(election_year, voting_type, party) %>%
+  pivot_wider(names_from = voting_type, values_from = party) %>%
+  arrange(election_year)
+
+print(winning_parties, n = Inf)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
