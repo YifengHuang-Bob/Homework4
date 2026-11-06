@@ -65,6 +65,125 @@ print(winning_parties, n = Inf)
 ```
 
 
+```{=typst}
+#v(3.5em)
+```
+
+
+## Problem 2 - Tidyverse: Tennis
+
+### (a) Number of Tournaments in 2019
+
+```{r}
+atp2019 <- read_csv("data/atp_matches_2019.csv", show_col_types = FALSE)
+
+```
+
+```{r}
+tournament_count <- atp2019 %>%
+  summarise(n_tournaments = n_distinct(tourney_id))
+
+print(tournament_count)
+
+```
+There were **128 tournaments** in the 2019 ATP Matches dataset, determined by counting the distinct tournament IDs.
+
+\
+
+### (b) Players Winning Multiple Tournaments
+
+```{r}
+multiple_title_winners <- atp2019 %>%
+  filter(round == "F") %>%
+  group_by(winner_id, winner_name) %>%
+  summarise(tournaments_won = n_distinct(tourney_id), .groups = "drop") %>%
+  filter(tournaments_won > 1) %>%
+  arrange(desc(tournaments_won), winner_name)
+
+print(multiple_title_winners, n = Inf)
+
+multiple_title_winners %>%
+  summarise(
+    n_players = n(),
+    max_tournaments = max(tournaments_won)
+  ) %>%
+  print()
+
+```
+Yes. In 2019, **12 players** won more than one tournament. **Dominic Thiem and Novak Djokovic** tied for the most tournament titles, each winning **5 tournaments**.
+
+\
+
+### (c) Comparing Aces Between Winners and Losers
+
+```{r}
+ace_comparison <- atp2019 %>%
+  filter(!is.na(w_ace), !is.na(l_ace)) %>%
+  mutate(ace_diff = w_ace - l_ace) %>%
+  summarise(
+    n_matches = n(),
+    mean_winner = mean(w_ace),
+    mean_loser = mean(l_ace),
+    mean_diff = mean(ace_diff),
+    se_diff = sd(ace_diff) / sqrt(n())
+  ) %>%
+  mutate(
+    lower_ci = mean_diff - 1.96 * se_diff,
+    upper_ci = mean_diff + 1.96 * se_diff
+  ) %>%
+  select(-se_diff)
+
+print(ace_comparison, width = Inf)
+
+```
+Yes. Based on 2,694 matches with complete ace records, winners averaged **7.50 aces** per match, compared with **5.79 aces** for losers. The mean paired difference was approximately **1.70 aces** (the reported means and mean difference were calculated using unrounded values and rounded separately for display), with an approximate 95% confidence interval of **[1.43, 1.97]**.
+
+Since the entire confidence interval is above zero, there is statistical evidence that winners tend to have more aces than losers.
+
+\
+
+### (d) Players with the Highest Win Rate
+
+```{r}
+player_results <- bind_rows(
+  atp2019 %>%
+    transmute(player_id = winner_id, player_name = winner_name, won = 1),
+  atp2019 %>%
+    transmute(player_id = loser_id, player_name = loser_name, won = 0)
+)
+
+top_win_rate <- player_results %>%
+  group_by(player_id, player_name) %>%
+  summarise(
+    matches_played = n(),
+    matches_won = sum(won),
+    .groups = "drop"
+  ) %>%
+  filter(matches_played >= 5) %>%
+  mutate(win_rate = matches_won / matches_played) %>%
+  slice_max(order_by = win_rate, n = 1, with_ties = TRUE) %>%
+  arrange(player_name)
+
+print(top_win_rate, n = Inf)
+
+```
+**Rafael Nadal** had the highest win rate among players who participated in at least 5 matches. He won **60 out of 69 matches**, achieving a win rate of approximately **87.0%**.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
