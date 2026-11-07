@@ -170,21 +170,311 @@ print(top_win_rate, n = Inf)
 **Rafael Nadal** had the highest win rate among players who participated in at least 5 matches. He won **60 out of 69 matches**, achieving a win rate of approximately **87.0%**.
 
 
+```{=typst}
+#v(3.5em)
+```
 
 
+## Problem 3 - Visualization
+
+### (a) Major and Minor Spikes in COVID-19 Cases
+
+```{r}
+covid <- read_csv("data/us-states.csv", show_col_types = FALSE)
+
+```
+
+```{r}
+us_cases <- covid %>%
+  group_by(date) %>%
+  summarise(
+    cases_7day = sum(cases_avg),
+    .groups = "drop"
+  )
+
+```
+
+```{r}
+peak_summary <- us_cases %>%
+  mutate(
+    wave = case_when(
+      date < as.Date("2020-05-16") ~ "Spring 2020",
+      date < as.Date("2020-09-16") ~ "Summer 2020",
+      date < as.Date("2021-03-15") ~ "Winter 2020-21",
+      date < as.Date("2021-07-01") ~ "Spring 2021",
+      date < as.Date("2021-11-16") ~ "Summer-Fall 2021",
+      date < as.Date("2022-03-16") ~ "Winter 2021-22",
+      date < as.Date("2022-10-16") ~ "Summer 2022",
+      TRUE ~ "Winter 2022-23"
+    )
+  ) %>%
+  group_by(wave) %>%
+  slice_max(cases_7day, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    spike_type = if_else(cases_7day >= 150000, "Major", "Minor")
+  ) %>%
+  arrange(date)
+
+peak_summary %>%
+  select(wave, date, cases_7day, spike_type) %>%
+  print(n = Inf)
+
+```
 
 
+```{r}
+invisible(Sys.setlocale("LC_TIME", "C"))
+
+ggplot(us_cases, aes(x = date, y = cases_7day)) +
+  geom_line(color = "#2878A8", linewidth = 0.8) +
+  geom_point(
+    data = peak_summary,
+    aes(color = spike_type, shape = spike_type),
+    size = 3.5
+  ) +
+  geom_text(
+    data = peak_summary %>% filter(spike_type == "Major"),
+    aes(label = format(date, "%b %Y")),
+    color = "#C43D3D",
+    vjust = -1,
+    size = 3.3
+  ) +
+  scale_color_manual(
+    values = c("Major" = "#C43D3D", "Minor" = "#E6A23C")
+  ) +
+  scale_shape_manual(
+    values = c("Major" = 17, "Minor" = 16)
+  ) +
+  scale_x_date(
+    date_breaks = "6 months",
+    date_labels = "%b %Y"
+  ) +
+  scale_y_continuous(
+    labels = scales::label_comma(),
+    expand = expansion(mult = c(0.02, 0.20))
+  ) +
+  labs(
+    title = "COVID-19 Case Waves in the United States",
+    subtitle = "Daily new cases (7-day average); major spikes ≥ 150,000 cases",
+    x = NULL,
+    y = "Daily New Cases (7-day Average)",
+    color = "Spike Type",
+    shape = "Spike Type",
+    caption = "Source: The New York Times | 50 states, D.C., and five U.S. territories"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+
+Based on the 7-day rolling average of daily new COVID-19 cases, we identified **8 distinct waves**, consisting of **3 major spikes and 5 minor spikes**.
+
+We classified a spike as major if its peak reached at least 150,000 daily cases, and minor otherwise. The three major spikes occurred in **January 2021, September 2021, and January 2022**, with the largest peak reaching approximately **806,795 daily cases** in January 2022.
+
+The five minor spikes occurred in **April 2020, July 2020, April 2021, July 2022, and December 2022**. These classifications are based on visually identified epidemic waves and an exploratory threshold, rather than a formal peak-detection procedure.
 
 
+\
 
+### (b) Comparing States with the Highest and Lowest Case Rates
 
+```{r}
+state_rates <- covid %>%
+  filter(!state %in% c(
+    "American Samoa", "District of Columbia", "Guam",
+    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"
+  )) %>%
+  group_by(state) %>%
+  summarise(
+    overall_rate_per_100k = sum(cases_avg_per_100k),
+    .groups = "drop"
+  )
 
+extreme_states <- bind_rows(
+  state_rates %>%
+    slice_max(overall_rate_per_100k, n = 1, with_ties = TRUE) %>%
+    mutate(category = "Highest"),
+  state_rates %>%
+    slice_min(overall_rate_per_100k, n = 1, with_ties = TRUE) %>%
+    mutate(category = "Lowest")
+) %>%
+  select(category, state, overall_rate_per_100k)
 
+print(extreme_states, n = Inf)
+```
 
+```{r}
+state_comparison <- covid %>%
+  filter(state %in% extreme_states$state)
 
+```
 
+```{r}
+ggplot(
+  state_comparison,
+  aes(x = date, y = cases_avg_per_100k, color = state)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_color_manual(
+    values = c(
+      "Rhode Island" = "#C43D3D",
+      "Maine" = "#2878A8"
+    )
+  ) +
+  scale_x_date(
+    date_breaks = "6 months",
+    date_labels = "%b %Y"
+  ) +
+  scale_y_continuous(
+    labels = scales::label_comma()
+  ) +
+  labs(
+    title = "COVID-19 Case Rates: Rhode Island vs. Maine",
+    subtitle = "Daily new cases per 100,000 residents (7-day average), 2020–2023",
+    x = NULL,
+    y = "Daily New Cases per 100,000",
+    color = "State",
+    caption = "Source: The New York Times | Rhode Island and Maine"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    plot.caption = element_text(hjust = 0)
+  )
 
+```
+Among the 50 U.S. states, **Rhode Island** had the highest approximate cumulative COVID-19 case rate, with **43,296 cases per 100,000 residents**, while **Maine** had the lowest, with **22,020 cases per 100,000 residents**. Rhode Island's overall rate was approximately twice that of Maine. These cumulative rates were estimated by summing the daily 7-day rolling average case rates per 100,000 residents.
 
+The trajectories show several important differences. **Rhode Island experienced earlier and substantially sharper spikes**, particularly during the winter of 2020–2021 and January 2022. Its January 2022 peak exceeded **500 daily cases per 100,000 residents**, far higher than Maine's rate during the same period.
+
+In contrast, **Maine generally experienced lower and more gradual increases**, with some peaks occurring later than those in Rhode Island. Although Rhode Island had the higher overall rate, Maine occasionally reached comparable or higher daily case rates during certain periods.
+
+Overall, Rhode Island experienced more pronounced fluctuations and substantially higher peaks, whereas Maine's trajectory was generally less extreme.
+
+\
+
+### (c) First Five States to Experience Substantial COVID-19 Spread
+
+```{r}
+threshold_comparison <- covid %>%
+  filter(
+    state %in% state_rates$state,
+    !is.na(cases_avg_per_100k)
+  ) %>%
+  crossing(threshold = c(3, 5, 10)) %>%
+  filter(cases_avg_per_100k >= threshold) %>%
+  group_by(threshold, state) %>%
+  summarise(
+    first_date = min(date),
+    .groups = "drop"
+  ) %>%
+  group_by(threshold) %>%
+  slice_min(first_date, n = 5, with_ties = TRUE) %>%
+  ungroup() %>%
+  arrange(threshold, first_date, state)
+
+print(threshold_comparison, n = Inf)
+
+```
+
+```{r}
+first_five_states <- threshold_comparison %>%
+  filter(threshold == 10) %>%
+  select(state, first_date)
+
+print(first_five_states, n = Inf)
+
+```
+
+```{r}
+early_trajectories <- covid %>%
+  filter(
+    state %in% first_five_states$state,
+    date >= as.Date("2020-03-15"),
+    date <= as.Date("2020-04-10")
+  )
+
+threshold_points <- covid %>%
+  inner_join(first_five_states, by = "state") %>%
+  filter(date == first_date)
+
+```
+
+```{r}
+ggplot(
+  early_trajectories,
+  aes(x = date, y = cases_avg_per_100k, color = state)
+) +
+  geom_hline(
+    yintercept = 10,
+    linetype = "dashed",
+    color = "gray45",
+    linewidth = 0.7
+  ) +
+  geom_line(linewidth = 0.9) +
+  geom_point(
+    data = threshold_points,
+    aes(x = first_date, y = cases_avg_per_100k, color = state),
+    inherit.aes = FALSE,
+    size = 3
+  ) +
+  scale_color_manual(
+    values = c(
+      "New York" = "#C43D3D",
+      "New Jersey" = "#2878A8",
+      "Massachusetts" = "#E6A23C",
+      "Connecticut" = "#4E937A",
+      "Louisiana" = "#8E6BBE"
+    )
+  ) +
+  guides(
+    color = guide_legend(nrow = 2, byrow = TRUE)
+  ) +
+  scale_x_date(
+    date_breaks = "5 days",
+    date_labels = "%b %d"
+  ) +
+  scale_y_continuous(
+    labels = scales::label_comma()
+  ) +
+  labs(
+    title = "Early COVID-19 Spread: First Five States",
+    subtitle = "7-day average of daily new cases per 100,000, Mar–Apr 2020",
+    x = NULL,
+    y = "Daily New Cases per 100,000",
+    color = NULL,
+    caption = "Source: The New York Times | Dashed line: 10 cases per 100,000"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold", size = 15),
+    plot.subtitle = element_text(size = 11),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    plot.caption = element_text(hjust = 0)
+  )
+
+```
+We defined substantial COVID-19 spread as reaching at least **10 daily new cases per 100,000 residents**, based on the 7-day rolling average. Under this criterion, the first five states were **New York (March 22, 2020), New Jersey (March 27), Massachusetts (March 30), Connecticut (March 31), and Louisiana (March 31)**.
+
+The plot shows that **New York experienced the earliest and most rapid increase**, followed by New Jersey. Both states exhibited substantially higher case rates by early April 2020. Louisiana also experienced relatively rapid growth, while Massachusetts and Connecticut showed more gradual increases during the same period.
+
+To assess the sensitivity of our findings, we also considered thresholds of **3 and 5 daily cases per 100,000 residents**. The same five states appeared among the earliest states under all three thresholds, although Michigan was also included at the lower thresholds due to ties.
+
+These findings are based on an exploratory threshold rather than a formal statistical test. The identified onset dates depend on the chosen threshold and reported case data, which may be affected by differences in testing and reporting across states.
 
 
 
